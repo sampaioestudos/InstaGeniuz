@@ -1,14 +1,25 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { v2 as cloudinary } from 'cloudinary';
 
 // IMPORTANT: Set these environment variables in your Vercel project settings
 const {
     CLOUDINARY_CLOUD_NAME,
     CLOUDINARY_API_KEY,
+    CLOUDINARY_API_SECRET,
     INSTAGRAM_USER_ID,
     INSTAGRAM_ACCESS_TOKEN
 } = process.env;
 
+// Configure Cloudinary SDK
+if (CLOUDINARY_CLOUD_NAME && CLOUDINARY_API_KEY && CLOUDINARY_API_SECRET) {
+    cloudinary.config({
+        cloud_name: CLOUDINARY_CLOUD_NAME,
+        api_key: CLOUDINARY_API_KEY,
+        api_secret: CLOUDINARY_API_SECRET,
+        secure: true
+    });
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Handle OPTIONS request for CORS preflight
@@ -32,7 +43,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
-        const imageUrl = await uploadImage(imageBase64);
+        const imageUrl = await uploadImageWithWatermark(imageBase64);
         const igPostId = await publishPost(imageUrl, caption);
 
         return res.status(200).json({ postId: igPostId, optimizedImageUrl: imageUrl });
@@ -44,18 +55,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 }
 
-// MOCK FUNCTION: Simulates uploading to Cloudinary
-async function uploadImage(imageBase64: string): Promise<string> {
-    if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY) {
-        throw new Error("Server configuration error: Cloudinary environment variables are not set.");
+
+// REAL FUNCTION: Uploads to Cloudinary with a dynamic watermark
+async function uploadImageWithWatermark(imageBase64: string): Promise<string> {
+    if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
+        throw new Error("Server configuration error: Cloudinary environment variables are not properly set.");
     }
-    console.log("Simulating upload to Cloudinary for cloud:", CLOUDINARY_CLOUD_NAME);
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    const randomId = Math.random().toString(36).substring(2, 10);
-    const placeholderUrl = `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/upload/v1672531200/simulated/${randomId}.jpg`;
-    console.log("Simulated upload complete. URL:", placeholderUrl);
-    return placeholderUrl;
+
+    console.log("Uploading to Cloudinary with watermark...");
+
+    try {
+        const result = await cloudinary.uploader.upload(`data:image/jpeg;base64,${imageBase64}`, {
+            folder: "instagenius-ai", // Organize uploads in a specific folder
+            transformation: [
+                {
+                    // Add a dynamic text watermark
+                    overlay: {
+                        font_family: "Arial",
+                        font_size: 40,
+                        font_weight: "bold",
+                        text: "InstaGenius AI"
+                    },
+                    color: "#FFFFFF",
+                    opacity: 60,
+                    gravity: "south_east", // Position at the bottom-right
+                    x: 20, // Margin from the edge
+                    y: 20
+                }
+            ]
+        });
+        
+        console.log("Upload successful. URL:", result.secure_url);
+        return result.secure_url;
+    } catch (error) {
+        console.error("Cloudinary upload failed:", error);
+        // Throw a more specific error to be caught by the handler
+        throw new Error("Failed to upload image to Cloudinary.");
+    }
 }
+
 
 // MOCK FUNCTION: Simulates publishing to Instagram
 async function publishPost(imageUrl: string, caption: string): Promise<string> {
@@ -65,7 +103,7 @@ async function publishPost(imageUrl: string, caption: string): Promise<string> {
     console.log(`Simulating Instagram post publication for user: ${INSTAGRAM_USER_ID}`);
     
     // Simulate API calls
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise(resolve => setTimeout(resolve, 1000));
     
     const postId = `1234567890_${Date.now()}`;
     console.log("Post published successfully. Post ID:", postId);
