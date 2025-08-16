@@ -24,6 +24,15 @@ export interface GeneratedText {
   hashtags: string;
 }
 
+export interface PostHistoryItem {
+    id: string;
+    imageUrl: string;
+    fullCaption: string;
+    prompt: string;
+    postType: PostTypeId;
+    timestamp: number;
+}
+
 export type AppState =
   | 'idle'
   | 'loading-media'

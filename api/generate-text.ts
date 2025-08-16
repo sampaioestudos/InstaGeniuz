@@ -31,12 +31,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     
     try {
-        const systemInstruction = `You are an expert Instagram content creator. Your goal is to analyze the provided image and user prompt to generate 3 variations of an engaging caption, each with a call-to-action (CTA), and a single set of relevant hashtags.
-- The response MUST be a valid JSON object.
-- The root object must have two keys: "captionVariations" and "hashtags".
-- "captionVariations" must be an array of exactly 3 objects.
-- Each object in "captionVariations" must have two string keys: "caption" and "cta".
-- "hashtags" must be a single string of 10-20 relevant, popular hashtags, separated by spaces (e.g., "#coffee #morningvibe #booklover").
+        const systemInstruction = `You are an expert Instagram content creator. Analyze the image and prompt to generate engaging content.
+- Your response MUST be a valid JSON object.
+- The root object must have two keys: "captionVariations" (an array of 2-3 caption objects) and "hashtags" (a single string).
+- Each caption object must have two string keys: "caption" and "cta".
+- "hashtags" should be a string of 10-20 relevant, space-separated hashtags (e.g., "#coffee #morningvibe #booklover").
 - The generated text must be contextual to the image provided.
 - Tone: ${tone}.
 - Length: ${length}.`;
@@ -63,7 +62,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     properties: {
                         captionVariations: {
                             type: Type.ARRAY,
-                            description: "An array of 3 caption variations.",
+                            description: "An array of caption variations.",
                             items: {
                                 type: Type.OBJECT,
                                 properties: {
@@ -83,10 +82,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             },
         });
         
-        // Sometimes the model returns a string that needs parsing, other times it's an object.
-        const responseText = response.text;
-        const parsedResponse = typeof responseText === 'string' ? JSON.parse(responseText) : responseText;
-
+        let parsedResponse;
+        try {
+            const responseText = response.text;
+            if (!responseText || responseText.trim() === '') {
+                throw new Error("The AI returned an empty response. Please try again.");
+            }
+            parsedResponse = JSON.parse(responseText);
+        } catch (parseError) {
+            console.error("Failed to parse JSON response from Gemini:", response.text, parseError);
+            throw new Error("The AI returned a response in an unexpected format. Please try rephrasing your prompt or try again.");
+        }
+        
         return res.status(200).json(parsedResponse);
 
     } catch (error) {

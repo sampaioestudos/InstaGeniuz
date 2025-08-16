@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Header } from './components/Header';
 import { SettingsModal } from './components/SettingsModal';
 import { PostForm } from './components/PostForm';
@@ -7,7 +7,8 @@ import { ImageSelector } from './components/ImageSelector';
 import { PreviewCard } from './components/PreviewCard';
 import { Loader } from './components/Loader';
 import { PrivacyPolicy } from './components/PrivacyPolicy';
-import type { PostFormState, GeneratedMedia, GeneratedText, AppState } from './types';
+import { PostHistory } from './components/PostHistory';
+import type { PostFormState, GeneratedMedia, GeneratedText, AppState, PostHistoryItem } from './types';
 import { POST_OPTIONS } from './constants';
 import { AlertTriangle, CheckCircle2, RotateCcw, RefreshCw, ServerCrash } from 'lucide-react';
 
@@ -26,6 +27,21 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [optimizedImageUrl, setOptimizedImageUrl] = useState<string | null>(null);
   const [lastAction, setLastAction] = useState<'generate-media' | 'generate-text' | 'publish' | null>(null);
+  const [postHistory, setPostHistory] = useState<PostHistoryItem[]>([]);
+
+  useEffect(() => {
+    try {
+      const savedHistory = localStorage.getItem('instagenius-history');
+      if (savedHistory) {
+        setPostHistory(JSON.parse(savedHistory));
+      }
+    } catch (e) {
+      console.error("Failed to load post history from localStorage", e);
+      // If parsing fails, clear the corrupted data
+      localStorage.removeItem('instagenius-history');
+    }
+  }, []);
+
 
   const handleGenerateMedia = useCallback(async () => {
     setAppState('loading-media');
@@ -146,13 +162,27 @@ const App: React.FC = () => {
         setOptimizedImageUrl(data.optimizedImageUrl);
         setAppState('published');
 
+        // Add to history
+        const newHistoryItem: PostHistoryItem = {
+            id: `post_${Date.now()}`,
+            imageUrl: data.optimizedImageUrl,
+            fullCaption: fullCaption,
+            prompt: formState.prompt,
+            postType: formState.postType,
+            timestamp: Date.now(),
+        };
+        const updatedHistory = [newHistoryItem, ...postHistory].slice(0, 10); // Keep last 10
+        setPostHistory(updatedHistory);
+        localStorage.setItem('instagenius-history', JSON.stringify(updatedHistory));
+
+
     } catch (err) {
       console.error(err);
       const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred during publishing.';
       setError(`Publishing Failed: ${errorMessage}`);
       setAppState('error');
     }
-  }, [generatedMedia, generatedText, selectedImageIndex, formState.postType]);
+  }, [generatedMedia, generatedText, selectedImageIndex, formState, postHistory]);
   
   const handleContentChange = (newVariations: any[], newHashtags: string) => {
     if (generatedText) {
@@ -220,7 +250,7 @@ const App: React.FC = () => {
             }
             return null;
         case 'publishing':
-            return <Loader message="Publishing to Instagram..." />;
+            return <Loader message="Optimizing image and publishing post..." />;
         case 'published':
             return (
                 <div className="text-center p-8 bg-green-900/20 border border-green-500 rounded-lg">
@@ -229,7 +259,7 @@ const App: React.FC = () => {
                     <p className="text-green-200 mt-2 mb-6">Your content is now live on Instagram (simulation).</p>
                     {optimizedImageUrl && (
                         <div className="mb-4">
-                            <p className="text-sm text-gray-400">Cloudinary Image URL (simulated):</p>
+                            <p className="text-sm text-gray-400">Cloudinary Image URL:</p>
                             <a href={optimizedImageUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-400 break-all">{optimizedImageUrl}</a>
                         </div>
                     )}
@@ -288,7 +318,9 @@ const App: React.FC = () => {
             {renderContent()}
         </div>
         
-        {appState === 'idle' && <PrivacyPolicy />}
+        {postHistory.length > 0 && <PostHistory history={postHistory} />}
+
+        {appState === 'idle' && postHistory.length === 0 && <PrivacyPolicy />}
 
         <footer className="text-center mt-8 text-gray-500 text-sm">
             <p>Powered by Gemini, Cloudinary, and the Instagram Graph API.</p>

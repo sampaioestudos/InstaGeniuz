@@ -11,6 +11,13 @@ interface PostFormProps {
   isLoading: boolean;
 }
 
+const PROMPT_STARTERS = [
+  "A product shot of [product] focusing on [benefit]",
+  "An inspirational quote about [topic]",
+  "Behind the scenes of [activity]",
+  "A flat lay of items for [event or theme]",
+];
+
 const SelectField = ({ label, value, onChange, options }: { label: string, value: string, onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void, options: {id: string, name: string}[] }) => (
     <div>
         <label className="block text-sm font-medium text-gray-400 mb-1">{label}</label>
@@ -51,6 +58,24 @@ export const PostForm: React.FC<PostFormProps> = ({ formState, setFormState, onS
           onChange={e => handleInputChange('prompt', e.target.value)}
           required
         />
+      </div>
+
+      <div className="pt-2">
+        <label className="block text-sm font-medium text-gray-400 mb-2">
+          Prompt Starters
+        </label>
+        <div className="flex flex-wrap gap-2">
+          {PROMPT_STARTERS.map((prompt, index) => (
+            <button
+              key={index}
+              type="button"
+              onClick={() => handleInputChange('prompt', prompt)}
+              className="px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-full transition-colors"
+            >
+              {prompt}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
