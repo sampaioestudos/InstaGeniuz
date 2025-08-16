@@ -6,7 +6,7 @@ This project is built as a secure, serverless application, optimized for easy de
 
 **[Live Demo Link Here]** <!-- Add your Vercel deployment link here -->
 
-![InstaGenius AI Screenshot](https://i.imgur.com/example.png) <!-- Replace with a real screenshot of your app -->
+![InstaGenius AI Screenshot](https://raw.githubusercontent.com/vercel/next.js/canary/examples/ai-chatbot/public/screenshot.png) <!-- Replace with a real screenshot of your app -->
 
 ---
 
@@ -34,13 +34,13 @@ This project is built as a secure, serverless application, optimized for easy de
 
 ## ⚙️ How It Works
 
-The application follows a simple yet powerful workflow:
+The application follows a simple yet powerful multi-step workflow:
 
 1.  **User Input**: The user enters a prompt (e.g., "a cozy coffee shop on a rainy day") and selects the desired post type, caption tone, and length.
-2.  **API Request to Backend**: The frontend sends a request to the `/api/generate` serverless function.
-3.  **Secure AI Generation**: The serverless function, running on Vercel's backend, securely calls the Google Gemini API using the stored `GEMINI_API_KEY`. It runs two parallel requests: one for the text (caption/hashtags) and one for the image.
-4.  **Content Preview**: The generated content (image, caption, hashtags) is returned to the frontend for the user to review and edit.
-5.  **Publishing Workflow**: When the user clicks "Publish," the frontend sends the final content to the `/api/publish` serverless function.
+2.  **Image Generation**: The frontend sends a request to the `/api/generate` serverless function. This backend function securely calls the Google Gemini API (`imagen-3.0-generate-002`) to generate several image options based on the prompt.
+3.  **Image Selection**: The generated images are displayed to the user, who selects their favorite one.
+4.  **Contextual Text Generation**: The frontend sends a new request to the `/api/generate-text` function, including the original prompt and the chosen image. The backend uses the Gemini vision model (`gemini-2.5-flash`) to analyze the image and generate highly relevant, contextual captions and hashtags.
+5.  **Review & Publish**: The user can review and edit the generated text. When ready, they click "Publish," which sends the final content to the `/api/publish` serverless function.
 6.  **Simulated Deployment**: This backend function simulates the full publishing flow:
     -   It "uploads" the image to Cloudinary (using mock logic).
     -   It "publishes" the post to the Instagram Graph API (using mock logic).
@@ -134,13 +134,16 @@ While the app is designed for Vercel, you can run it locally for development usi
 ```
 .
 ├── api/
-│   ├── generate.ts      # Serverless function for Gemini content generation.
+│   ├── generate.ts      # Serverless function for AI image generation using Imagen 3.
+│   ├── generate-text.ts # Serverless function for AI caption/hashtag generation using Gemini.
 │   └── publish.ts       # Serverless function for Cloudinary/Instagram simulation.
 ├── components/
 │   ├── Header.tsx
+│   ├── ImageSelector.tsx
 │   ├── Loader.tsx
 │   ├── PostForm.tsx
 │   ├── PreviewCard.tsx
+│   ├── PrivacyPolicy.tsx
 │   └── SettingsModal.tsx
 ├── App.tsx              # Main application component and state management.
 ├── index.html           # Entry point HTML.
