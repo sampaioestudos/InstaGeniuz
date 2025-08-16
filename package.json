@@ -6,7 +6,7 @@
   "description": "AI Instagram Post Automator for Vercel",
   "scripts": {
     "dev": "vercel dev",
-    "build": "esbuild index.tsx --bundle --outfile=public/index.js --jsx=automatic"
+    "build": "esbuild index.tsx --bundle --outfile=public/index.js --jsx=automatic && cp index.html public/"
   },
   "dependencies": {
     "@google/genai": "^1.14.0",
