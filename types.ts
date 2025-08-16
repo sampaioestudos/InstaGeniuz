@@ -42,3 +42,10 @@ export type AppState =
   | 'publishing'
   | 'published'
   | 'error';
+
+// Types for the new API testing feature
+export type ApiTestId = 'generate' | 'generate-text' | 'publish';
+export type ApiTestState = {
+  status: 'idle' | 'loading' | 'success' | 'error';
+  message?: string;
+};

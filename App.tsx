@@ -8,9 +8,15 @@ import { PreviewCard } from './components/PreviewCard';
 import { Loader } from './components/Loader';
 import { PrivacyPolicy } from './components/PrivacyPolicy';
 import { PostHistory } from './components/PostHistory';
-import type { PostFormState, GeneratedMedia, GeneratedText, AppState, PostHistoryItem } from './types';
+import type { PostFormState, GeneratedMedia, GeneratedText, AppState, PostHistoryItem, ApiTestId, ApiTestState } from './types';
 import { POST_OPTIONS } from './constants';
 import { AlertTriangle, CheckCircle2, RotateCcw, RefreshCw, ServerCrash } from 'lucide-react';
+
+const initialApiTestState: Record<ApiTestId, ApiTestState> = {
+  generate: { status: 'idle' },
+  'generate-text': { status: 'idle' },
+  publish: { status: 'idle' },
+};
 
 const App: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -28,6 +34,7 @@ const App: React.FC = () => {
   const [optimizedImageUrl, setOptimizedImageUrl] = useState<string | null>(null);
   const [lastAction, setLastAction] = useState<'generate-media' | 'generate-text' | 'publish' | null>(null);
   const [postHistory, setPostHistory] = useState<PostHistoryItem[]>([]);
+  const [apiTestStatus, setApiTestStatus] = useState<Record<ApiTestId, ApiTestState>>(initialApiTestState);
 
   useEffect(() => {
     try {
@@ -37,11 +44,54 @@ const App: React.FC = () => {
       }
     } catch (e) {
       console.error("Failed to load post history from localStorage", e);
-      // If parsing fails, clear the corrupted data
       localStorage.removeItem('instagenius-history');
     }
   }, []);
+  
+  const handleApiTest = useCallback(async (testId: ApiTestId) => {
+    setApiTestStatus(prev => ({ ...prev, [testId]: { status: 'loading' } }));
+    
+    let url = `/api/${testId}`;
+    let body: any;
+    
+    // 1x1 black GIF pixel
+    const dummyImageBase64 = "R0lGODlhAQABAIAAAAUEBAAAACwAAAAAAQABAAACAkQBADs=";
 
+    switch (testId) {
+      case 'generate':
+        body = { prompt: "a cute cat", postType: 'feed-square', aspectRatio: '1:1' };
+        break;
+      case 'generate-text':
+        body = { prompt: "a cute cat", tone: "friendly", length: "short", imageBase64: dummyImageBase64 };
+        break;
+      case 'publish':
+        body = { imageBase64: dummyImageBase64, caption: "Test caption" };
+        break;
+    }
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        let errorDetails = `Server responded with status ${response.status}.`;
+        try {
+          const errorData = await response.json();
+          errorDetails = errorData.error || errorDetails;
+        } catch (e) { /* Ignore */ }
+        throw new Error(errorDetails);
+      }
+      
+      setApiTestStatus(prev => ({ ...prev, [testId]: { status: 'success', message: 'API responded successfully!' } }));
+
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
+      setApiTestStatus(prev => ({ ...prev, [testId]: { status: 'error', message: errorMessage } }));
+    }
+  }, []);
 
   const handleGenerateMedia = useCallback(async () => {
     setAppState('loading-media');
@@ -299,6 +349,8 @@ const App: React.FC = () => {
         <SettingsModal
           isOpen={isSettingsOpen}
           onClose={() => setIsSettingsOpen(false)}
+          apiTestStatus={apiTestStatus}
+          onApiTest={handleApiTest}
         />
         
         <div className="bg-gray-800 rounded-lg border border-gray-700 shadow-lg p-6 md:p-8">
