@@ -5,7 +5,6 @@ import type { PostTypeId } from '../types';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-    // Handle OPTIONS request for CORS preflight
     if (req.method === 'OPTIONS') {
         res.setHeader('Access-Control-Allow-Credentials', 'true');
         res.setHeader('Access-Control-Allow-Origin', '*');
@@ -21,7 +20,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     try {
         if (!GEMINI_API_KEY) {
-            return res.status(500).json({ error: "Server configuration error: GEMINI_API_KEY is not set." });
+            throw new Error("Server configuration error: GEMINI_API_KEY is not set.");
         }
 
         const { prompt, postType, aspectRatio } = req.body as { prompt: string; postType: PostTypeId; aspectRatio: string; };
@@ -32,11 +31,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         
         const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
-        // Optimized prompt for better results
         const fullPrompt = `Instagram post photo. Photorealistic, modern aesthetic, visually stunning, high quality. Subject: ${prompt}.`;
-        
-        // Generate 1 image for single posts to avoid Vercel's 10s timeout.
-        // Carousels still need 5, but may fail on the Hobby plan.
         const numberOfImages = postType === 'carousel' ? 5 : 1;
 
         const response = await ai.models.generateImages({
@@ -50,8 +45,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
 
         if (!response.generatedImages?.length) {
-            // Provide clearer feedback if the prompt is blocked or yields no results
-            throw new Error("The AI model did not generate any images. This could be due to a restrictive prompt or a temporary API issue. Please try rephrasing your prompt.");
+            throw new Error("The AI model did not generate any images. This could be due to a restrictive prompt. Please try rephrasing your prompt.");
         }
 
         const imageBases64 = response.generatedImages
@@ -66,17 +60,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     } catch (error) {
         console.error("Error in /api/generate:", error);
-        
-        let errorMessage = "An unknown error occurred during image generation.";
-        if (error instanceof Error) {
-            errorMessage = error.message;
-        } else if (typeof error === 'string') {
-            errorMessage = error;
-        }
-        
-        // Log the full error for better debugging on Vercel
-        console.error("Full error object:", JSON.stringify(error, null, 2));
-
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred during image generation.";
         return res.status(500).json({ error: errorMessage });
     }
 }

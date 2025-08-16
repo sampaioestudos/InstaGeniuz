@@ -5,7 +5,6 @@ import { GoogleGenAI, Type } from "@google/genai";
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-    // Handle OPTIONS request for CORS preflight
     if (req.method === 'OPTIONS') {
         res.setHeader('Access-Control-Allow-Credentials', 'true');
         res.setHeader('Access-Control-Allow-Origin', '*');
@@ -18,19 +17,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         res.setHeader('Allow', 'POST');
         return res.status(405).json({ error: 'Method Not Allowed' });
     }
-
-    if (!GEMINI_API_KEY) {
-        return res.status(500).json({ error: "Server configuration error: GEMINI_API_KEY is not set." });
-    }
-
-    const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
-    const { prompt, tone, length, imageBase64 } = req.body;
-
-    if (!prompt || !tone || !length || !imageBase64) {
-        return res.status(400).json({ error: 'Missing required parameters in request body.' });
-    }
     
     try {
+        if (!GEMINI_API_KEY) {
+            throw new Error("Server configuration error: GEMINI_API_KEY is not set.");
+        }
+
+        const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+        const { prompt, tone, length, imageBase64 } = req.body;
+
+        if (!prompt || !tone || !length || !imageBase64) {
+            return res.status(400).json({ error: 'Missing required parameters in request body.' });
+        }
+    
         const systemInstruction = `You are an expert Instagram content creator. Analyze the image and prompt to generate engaging content.
 - Your response MUST be a valid JSON object.
 - The root object must have two keys: "captionVariations" (an array of 2-3 caption objects) and "hashtags" (a single string).
@@ -82,23 +81,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             },
         });
         
-        let parsedResponse;
-        try {
-            const responseText = response.text;
-            if (!responseText || responseText.trim() === '') {
-                throw new Error("The AI returned an empty response. Please try again.");
-            }
-            parsedResponse = JSON.parse(responseText);
-        } catch (parseError) {
-            console.error("Failed to parse JSON response from Gemini:", response.text, parseError);
-            throw new Error("The AI returned a response in an unexpected format. Please try rephrasing your prompt or try again.");
+        const responseText = response.text;
+        if (!responseText || responseText.trim() === '') {
+            throw new Error("The AI returned an empty response. Please try again.");
         }
         
+        const parsedResponse = JSON.parse(responseText);
         return res.status(200).json(parsedResponse);
 
     } catch (error) {
         console.error("Error in /api/generate-text:", error);
-        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+        
+        let errorMessage = "An unknown error occurred.";
+        if (error instanceof Error) {
+            errorMessage = error.message;
+            // Check for parsing error specifically to give a better hint
+            if (error.message.includes("Unexpected token")) {
+                errorMessage = "The AI returned a response in an unexpected format. Please try again.";
+            }
+        }
+        
         return res.status(500).json({ error: `Text generation failed: ${errorMessage}` });
     }
 }
