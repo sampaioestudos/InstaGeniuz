@@ -1,4 +1,3 @@
-
 {
   "version": 2,
   "builds": [
@@ -17,6 +16,7 @@
   "routes": [
     {
       "src": "/api/(.*)",
+      "methods": ["POST"],
       "dest": "/api/$1"
     },
     {
