@@ -35,8 +35,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // Optimized prompt for better results
         const fullPrompt = `Instagram post photo. Photorealistic, modern aesthetic, visually stunning, high quality. Subject: ${prompt}.`;
         
-        // Reduced image count for non-carousels to improve performance
-        const numberOfImages = postType === 'carousel' ? 5 : 2;
+        // Generate 1 image for single posts to avoid Vercel's 10s timeout.
+        // Carousels still need 5, but may fail on the Hobby plan.
+        const numberOfImages = postType === 'carousel' ? 5 : 1;
 
         const response = await ai.models.generateImages({
             model: 'imagen-3.0-generate-002',
