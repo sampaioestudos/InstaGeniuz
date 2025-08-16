@@ -1,8 +1,7 @@
+
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI } from "@google/genai";
-import type { PostTypeId } from '../types';
-
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+import type { PostTypeId, ApiKeys } from '../types';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === 'OPTIONS') {
@@ -19,11 +18,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
+        const { prompt, postType, aspectRatio, apiKeys } = req.body as { prompt: string; postType: PostTypeId; aspectRatio: string; apiKeys: ApiKeys };
+        
+        const GEMINI_API_KEY = apiKeys?.gemini || process.env.GEMINI_API_KEY;
+        
         if (!GEMINI_API_KEY) {
-            throw new Error("Server configuration error: GEMINI_API_KEY is not set.");
+            throw new Error("Server configuration error: GEMINI_API_KEY is not set in the request or environment variables.");
         }
-
-        const { prompt, postType, aspectRatio } = req.body as { prompt: string; postType: PostTypeId; aspectRatio: string; };
 
         if (!prompt || !postType || !aspectRatio) {
             return res.status(400).json({ error: 'Missing required parameters in request body.' });

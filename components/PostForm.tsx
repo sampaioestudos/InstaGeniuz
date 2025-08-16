@@ -9,6 +9,7 @@ interface PostFormProps {
   setFormState: React.Dispatch<React.SetStateAction<PostFormState>>;
   onSubmit: () => void;
   isLoading: boolean;
+  disabled: boolean;
 }
 
 const PROMPT_STARTERS = [
@@ -33,13 +34,14 @@ const SelectField = ({ label, value, onChange, options }: { label: string, value
     </div>
 );
 
-export const PostForm: React.FC<PostFormProps> = ({ formState, setFormState, onSubmit, isLoading }) => {
+export const PostForm: React.FC<PostFormProps> = ({ formState, setFormState, onSubmit, isLoading, disabled }) => {
   const handleInputChange = (field: keyof PostFormState, value: string) => {
     setFormState(prev => ({ ...prev, [field]: value }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (disabled) return;
     onSubmit();
   };
 
@@ -101,7 +103,7 @@ export const PostForm: React.FC<PostFormProps> = ({ formState, setFormState, onS
 
       <button
         type="submit"
-        disabled={isLoading || !formState.prompt}
+        disabled={isLoading || !formState.prompt || disabled}
         className="w-full flex items-center justify-center bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 disabled:bg-gray-600 disabled:cursor-not-allowed"
       >
         <Wand2 className="mr-2 h-5 w-5" />

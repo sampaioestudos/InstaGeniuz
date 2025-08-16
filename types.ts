@@ -43,6 +43,15 @@ export type AppState =
   | 'published'
   | 'error';
 
+export interface ApiKeys {
+  gemini: string;
+  cloudinaryCloudName: string;
+  cloudinaryApiKey: string;
+  cloudinaryApiSecret: string;
+  instagramUserId: string;
+  instagramAccessToken: string;
+}
+
 // Types for the new API testing feature
 export type ApiTestId = 'generate' | 'generate-text' | 'publish';
 export type ApiTestState = {

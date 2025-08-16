@@ -1,8 +1,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI, Type } from "@google/genai";
-
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+import type { ApiKeys } from '../types';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === 'OPTIONS') {
@@ -19,13 +18,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     
     try {
+        const { prompt, tone, length, imageBase64, apiKeys } = req.body as { prompt: string, tone: string, length: string, imageBase64: string, apiKeys: ApiKeys };
+
+        const GEMINI_API_KEY = apiKeys?.gemini || process.env.GEMINI_API_KEY;
+
         if (!GEMINI_API_KEY) {
-            throw new Error("Server configuration error: GEMINI_API_KEY is not set.");
+            throw new Error("Server configuration error: GEMINI_API_KEY is not set in the request or environment variables.");
         }
 
         const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
-        const { prompt, tone, length, imageBase64 } = req.body;
-
+        
         if (!prompt || !tone || !length || !imageBase64) {
             return res.status(400).json({ error: 'Missing required parameters in request body.' });
         }
@@ -95,7 +97,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         let errorMessage = "An unknown error occurred.";
         if (error instanceof Error) {
             errorMessage = error.message;
-            // Check for parsing error specifically to give a better hint
             if (error.message.includes("Unexpected token")) {
                 errorMessage = "The AI returned a response in an unexpected format. Please try again.";
             }

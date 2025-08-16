@@ -1,19 +1,15 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { v2 as cloudinary } from 'cloudinary';
+import type { ApiKeys } from '../types';
 
-const {
-    CLOUDINARY_CLOUD_NAME,
-    CLOUDINARY_API_KEY,
-    CLOUDINARY_API_SECRET,
-    INSTAGRAM_USER_ID,
-    INSTAGRAM_ACCESS_TOKEN
-} = process.env;
+const configureCloudinary = (apiKeys: ApiKeys) => {
+    const CLOUDINARY_CLOUD_NAME = apiKeys?.cloudinaryCloudName || process.env.CLOUDINARY_CLOUD_NAME;
+    const CLOUDINARY_API_KEY = apiKeys?.cloudinaryApiKey || process.env.CLOUDINARY_API_KEY;
+    const CLOUDINARY_API_SECRET = apiKeys?.cloudinaryApiSecret || process.env.CLOUDINARY_API_SECRET;
 
-// This function now just checks for keys, the main handler will configure
-const configureCloudinary = () => {
     if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
-        throw new Error("Server configuration error: One or more Cloudinary environment variables are not set.");
+        throw new Error("Server configuration error: One or more Cloudinary environment variables are not set in request or environment.");
     }
     cloudinary.config({
         cloud_name: CLOUDINARY_CLOUD_NAME,
@@ -38,21 +34,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
-        // Centralized check for all environment variables
+        const { imageBase64, caption, apiKeys } = req.body as { imageBase64: string, caption: string, apiKeys: ApiKeys };
+
+        const INSTAGRAM_USER_ID = apiKeys?.instagramUserId || process.env.INSTAGRAM_USER_ID;
+        const INSTAGRAM_ACCESS_TOKEN = apiKeys?.instagramAccessToken || process.env.INSTAGRAM_ACCESS_TOKEN;
+
         if (!INSTAGRAM_USER_ID || !INSTAGRAM_ACCESS_TOKEN) {
-            throw new Error("Server configuration error: Instagram environment variables are not set.");
+            throw new Error("Server configuration error: Instagram variables are not set in request or environment.");
         }
         
-        // Configure Cloudinary inside the handler to catch config errors
-        configureCloudinary();
+        configureCloudinary(apiKeys);
 
-        const { imageBase64, caption } = req.body;
         if (!imageBase64 || !caption) {
             return res.status(400).json({ error: 'Missing required parameters: imageBase64 and caption.' });
         }
 
         const imageUrl = await uploadImageWithWatermark(imageBase64);
-        const igPostId = await publishPost(imageUrl, caption);
+        const igPostId = await publishPost(imageUrl, caption, INSTAGRAM_USER_ID);
 
         return res.status(200).json({ postId: igPostId, optimizedImageUrl: imageUrl });
 
@@ -92,8 +90,8 @@ async function uploadImageWithWatermark(imageBase64: string): Promise<string> {
     }
 }
 
-async function publishPost(imageUrl: string, caption: string): Promise<string> {
-    console.log(`Simulating Instagram post publication for user: ${INSTAGRAM_USER_ID}`);
+async function publishPost(imageUrl: string, caption: string, userId: string): Promise<string> {
+    console.log(`Simulating Instagram post publication for user: ${userId}`);
     await new Promise(resolve => setTimeout(resolve, 1000));
     const postId = `1234567890_${Date.now()}`;
     console.log("Post published successfully. Post ID:", postId);

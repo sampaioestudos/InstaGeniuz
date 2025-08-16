@@ -8,14 +8,24 @@ import { PreviewCard } from './components/PreviewCard';
 import { Loader } from './components/Loader';
 import { PrivacyPolicy } from './components/PrivacyPolicy';
 import { PostHistory } from './components/PostHistory';
-import type { PostFormState, GeneratedMedia, GeneratedText, AppState, PostHistoryItem, ApiTestId, ApiTestState } from './types';
+import type { PostFormState, GeneratedMedia, GeneratedText, AppState, PostHistoryItem, ApiTestId, ApiTestState, ApiKeys } from './types';
 import { POST_OPTIONS } from './constants';
 import { AlertTriangle, CheckCircle2, RotateCcw, RefreshCw, ServerCrash } from 'lucide-react';
+import { useLocalStorage } from './hooks/useLocalStorage';
 
 const initialApiTestState: Record<ApiTestId, ApiTestState> = {
   generate: { status: 'idle' },
   'generate-text': { status: 'idle' },
   publish: { status: 'idle' },
+};
+
+const initialApiKeys: ApiKeys = {
+  gemini: '',
+  cloudinaryCloudName: '',
+  cloudinaryApiKey: '',
+  cloudinaryApiSecret: '',
+  instagramUserId: '',
+  instagramAccessToken: '',
 };
 
 const App: React.FC = () => {
@@ -35,6 +45,9 @@ const App: React.FC = () => {
   const [lastAction, setLastAction] = useState<'generate-media' | 'generate-text' | 'publish' | null>(null);
   const [postHistory, setPostHistory] = useState<PostHistoryItem[]>([]);
   const [apiTestStatus, setApiTestStatus] = useState<Record<ApiTestId, ApiTestState>>(initialApiTestState);
+  const [apiKeys, setApiKeys] = useLocalStorage<ApiKeys>('instagenius-apikeys', initialApiKeys);
+
+  const areApiKeysSet = apiKeys && apiKeys.gemini && apiKeys.cloudinaryCloudName;
 
   useEffect(() => {
     try {
@@ -54,18 +67,17 @@ const App: React.FC = () => {
     let url = `/api/${testId}`;
     let body: any;
     
-    // 1x1 black GIF pixel
     const dummyImageBase64 = "R0lGODlhAQABAIAAAAUEBAAAACwAAAAAAQABAAACAkQBADs=";
 
     switch (testId) {
       case 'generate':
-        body = { prompt: "a cute cat", postType: 'feed-square', aspectRatio: '1:1' };
+        body = { prompt: "a cute cat", postType: 'feed-square', aspectRatio: '1:1', apiKeys };
         break;
       case 'generate-text':
-        body = { prompt: "a cute cat", tone: "friendly", length: "short", imageBase64: dummyImageBase64 };
+        body = { prompt: "a cute cat", tone: "friendly", length: "short", imageBase64: dummyImageBase64, apiKeys };
         break;
       case 'publish':
-        body = { imageBase64: dummyImageBase64, caption: "Test caption" };
+        body = { imageBase64: dummyImageBase64, caption: "Test caption", apiKeys };
         break;
     }
 
@@ -91,7 +103,7 @@ const App: React.FC = () => {
       const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
       setApiTestStatus(prev => ({ ...prev, [testId]: { status: 'error', message: errorMessage } }));
     }
-  }, []);
+  }, [apiKeys]);
 
   const handleGenerateMedia = useCallback(async () => {
     setAppState('loading-media');
@@ -106,7 +118,7 @@ const App: React.FC = () => {
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formState, aspectRatio }),
+        body: JSON.stringify({ ...formState, aspectRatio, apiKeys }),
       });
 
       if (!response.ok) {
@@ -129,7 +141,7 @@ const App: React.FC = () => {
       setError(`Media Generation Failed: ${errorMessage}`);
       setAppState('error');
     }
-  }, [formState]);
+  }, [formState, apiKeys]);
 
   const handleGenerateText = useCallback(async (selectedIndex: number) => {
     if (!generatedMedia) return;
@@ -146,6 +158,7 @@ const App: React.FC = () => {
             body: JSON.stringify({
                 ...formState,
                 imageBase64: generatedMedia.imageBases64[selectedIndex],
+                apiKeys,
             }),
         });
         
@@ -169,7 +182,7 @@ const App: React.FC = () => {
         setError(`Text Generation Failed: ${errorMessage}`);
         setAppState('error');
     }
-  }, [formState, generatedMedia]);
+  }, [formState, generatedMedia, apiKeys]);
 
   const handlePublish = useCallback(async (currentVariation: any, currentImageIndex: number) => {
     if (!generatedMedia || !generatedText) {
@@ -182,7 +195,7 @@ const App: React.FC = () => {
     setLastAction('publish');
 
     const imageToPublish = formState.postType === 'carousel' 
-        ? generatedMedia.imageBases64[currentImageIndex] // In a real scenario, you'd handle all carousel images
+        ? generatedMedia.imageBases64[currentImageIndex]
         : generatedMedia.imageBases64[selectedImageIndex];
     
     const fullCaption = `${currentVariation.caption}\n\n${currentVariation.cta}\n\n${generatedText.hashtags}`;
@@ -194,6 +207,7 @@ const App: React.FC = () => {
             body: JSON.stringify({
                 imageBase64: imageToPublish,
                 caption: fullCaption,
+                apiKeys,
             }),
         });
 
@@ -232,7 +246,7 @@ const App: React.FC = () => {
       setError(`Publishing Failed: ${errorMessage}`);
       setAppState('error');
     }
-  }, [generatedMedia, generatedText, selectedImageIndex, formState, postHistory]);
+  }, [generatedMedia, generatedText, selectedImageIndex, formState, postHistory, apiKeys]);
   
   const handleContentChange = (newVariations: any[], newHashtags: string) => {
     if (generatedText) {
@@ -265,22 +279,21 @@ const App: React.FC = () => {
     } else if (lastAction === 'generate-media') {
       handleGenerateMedia();
     } else {
-        // For publish, we need to reconstruct the arguments
-        handleGenerateMedia(); // Default to starting over for simplicity on publish failure
+        handleGenerateMedia();
     }
   }, [lastAction, handleGenerateMedia, handleGenerateText, selectedImageIndex]);
 
   const renderContent = () => {
     switch(appState) {
         case 'idle':
-            return <PostForm formState={formState} setFormState={setFormState} onSubmit={handleGenerateMedia} isLoading={false} />;
+            return <PostForm formState={formState} setFormState={setFormState} onSubmit={handleGenerateMedia} isLoading={false} disabled={!areApiKeysSet} />;
         case 'loading-media':
             return <Loader message="Generating stunning images with AI..." />;
         case 'selecting-image':
             if (generatedMedia) {
                 return <ImageSelector images={generatedMedia.imageBases64} onSelect={handleGenerateText} isLoading={false} />;
             }
-            return null; // or error state
+            return null;
         case 'loading-text':
             if (generatedMedia) {
                  return <ImageSelector images={generatedMedia.imageBases64} onSelect={() => {}} isLoading={true} selectedIndex={selectedImageIndex} />;
@@ -349,6 +362,8 @@ const App: React.FC = () => {
         <SettingsModal
           isOpen={isSettingsOpen}
           onClose={() => setIsSettingsOpen(false)}
+          apiKeys={apiKeys}
+          setApiKeys={setApiKeys}
           apiTestStatus={apiTestStatus}
           onApiTest={handleApiTest}
         />
@@ -357,12 +372,12 @@ const App: React.FC = () => {
             <h1 className="text-3xl md:text-4xl font-bold text-center mb-2 text-white">InstaGenius AI</h1>
             <p className="text-center text-gray-400 mb-8">Automate your Instagram content creation with AI.</p>
             
-            {appState === 'idle' && (
+            {appState === 'idle' && !areApiKeysSet && (
                 <div className="mb-6 flex items-start space-x-3 bg-yellow-900/30 text-yellow-300 p-4 rounded-lg border border-yellow-500">
                     <ServerCrash className="w-5 h-5 flex-shrink-0 mt-0.5" />
                     <div>
-                        <h4 className="font-bold">Configuration Required for Deployment</h4>
-                        <p className="text-sm">This app requires server-side API keys. Please set them as Environment Variables in your Vercel project settings. Click the gear icon for details.</p>
+                        <h4 className="font-bold">Configuration Required</h4>
+                        <p className="text-sm">Please set your API keys to enable content generation. Click the gear icon to open the settings panel.</p>
                     </div>
                 </div>
             )}
